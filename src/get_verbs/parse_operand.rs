@@ -5,7 +5,7 @@ use crate::{
 
 pub fn parse_operand(cursor: &mut SourceCodeCursor) -> Operand {
     if let Some(r) = parse_reg(cursor) {
-        return Operand::Register(r);
+        return Operand::Reg(r);
     }
     if let Some(operand) = parse_imm(cursor) {
         return operand;

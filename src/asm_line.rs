@@ -37,10 +37,10 @@ pub enum CC {
     Unconditional,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Operand {
     // NOTE: "symbolic mode" is not supported
-    Register(Reg),
+    Reg(Reg),
     IndexedReg(Reg, i16),
     Absolute(String), // label
     Indirect(Reg),
@@ -49,7 +49,7 @@ pub enum Operand {
     ImmLabel(String),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum Reg {
     PC,
     SP,

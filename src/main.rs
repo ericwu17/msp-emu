@@ -4,7 +4,9 @@ pub mod source_cursor;
 
 use std::fs::File;
 use std::io::Read;
+use std::process::exit;
 use std::process::Command;
+use std::str;
 
 const C_FILE_NAME: &str = "./main.c";
 const GENERATED_ASM_NAME: &str = "./main.asm";
@@ -23,12 +25,10 @@ fn main() {
     .output()
     .expect("failed to execute assembler process");
 
+    println!("{}", unsafe { str::from_utf8_unchecked(&output.stderr) });
     if output.status.code() != Some(0) {
-        dbg!(&output);
-        panic!(
-            "compiler processed exited with code {:?}",
-            output.status.code()
-        )
+        println!("Compilation failed. Exiting.");
+        exit(1);
     }
 
     let mut asm_contents = String::new();
@@ -38,7 +38,8 @@ fn main() {
         .expect(&format!("error reading file: {}", GENERATED_ASM_NAME));
 
     let lines = get_verbs::get_tokens(asm_contents);
-    for l in lines {
+    for l in &lines {
         println!("{:?}", l);
     }
+    println!("{} lines of asm", &lines.len());
 }

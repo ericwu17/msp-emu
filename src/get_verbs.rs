@@ -1,6 +1,6 @@
 pub mod parse_operand;
 use crate::{
-    asm_line::{AsmLine, CC},
+    asm_line::{AsmLine, Operand, Reg, CC},
     get_verbs::parse_operand::parse_operand,
     source_cursor::SourceCodeCursor,
 };
@@ -157,11 +157,90 @@ pub fn get_tokens(source_code_contents: String) -> Vec<AsmLine> {
                             }
                         }
 
+                        // ========================
+                        // Pseudo-operations
+                        // ========================
+                        "ADC" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::ADDC(Operand::Imm(0), operand, is_byte_instr));
+                        }
+                        "BR" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::MOV(operand, Operand::Reg(Reg::PC), false));
+                        }
+                        "CLR" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::MOV(Operand::Imm(0), operand, is_byte_instr));
+                        }
+
+                        "DEC" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::SUB(Operand::Imm(1), operand, is_byte_instr));
+                        }
+                        "DECD" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::SUB(Operand::Imm(2), operand, is_byte_instr));
+                        }
+                        "INC" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::ADD(Operand::Imm(1), operand, is_byte_instr));
+                        }
+                        "INCD" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::ADD(Operand::Imm(2), operand, is_byte_instr));
+                        }
+                        "NOP" => {
+                            lines.push(AsmLine::MOV(Operand::Imm(0), Operand::Reg(Reg::CG), false));
+                        }
+                        "POP" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::MOV(
+                                Operand::IndirectAutoInc(Reg::SP),
+                                operand,
+                                is_byte_instr,
+                            ));
+                        }
+                        "RET" => {
+                            lines.push(AsmLine::MOV(
+                                Operand::IndirectAutoInc(Reg::SP),
+                                Operand::Reg(Reg::PC),
+                                false,
+                            ));
+                        }
+                        "RLA" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::ADD(operand.clone(), operand, is_byte_instr));
+                        }
+                        "RLC" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::ADDC(operand.clone(), operand, is_byte_instr));
+                        }
+                        "SBC" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::SUBC(Operand::Imm(0), operand, is_byte_instr));
+                        }
+
+                        "TST" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::CMP(Operand::Imm(0), operand, is_byte_instr));
+                        }
+                        // ========================
+                        // end of Pseudo-operations
+                        // ========================
                         _ => {
-                            println!(
-                                "warning: ignoring unrecognized instruction {}",
-                                component_1_base
-                            );
+                            panic!("unrecognized instruction {}", component_1_base);
                         }
                     }
                 }

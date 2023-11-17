@@ -19,9 +19,20 @@ impl SourceCodeCursor {
     pub fn peek(&self) -> Option<char> {
         self.contents.get(self.index).copied()
     }
-    pub fn peek_nth(&self, n: usize) -> Option<&char> {
+    pub fn peek_nth(&self, n: usize) -> Option<char> {
         // peek_nth(1) is equivalent to peek()
-        self.contents.get(self.index + n - 1)
+        self.contents.get(self.index + n - 1).copied()
+    }
+
+    pub fn begins_with(&self, s: &str) -> bool {
+        let mut index: usize = 1;
+        for char in s.chars() {
+            if self.peek_nth(index) != Some(char) {
+                return false;
+            }
+            index += 1;
+        }
+        return true;
     }
 
     pub fn next(&mut self) -> Option<char> {

@@ -37,9 +37,12 @@ fn main() {
         .read_to_string(&mut asm_contents)
         .expect(&format!("error reading file: {}", GENERATED_ASM_NAME));
 
-    let lines = get_verbs::get_tokens(asm_contents);
+    let (globals, lines) = get_verbs::get_tokens(asm_contents);
     for l in &lines {
         println!("{:?}", l);
     }
     println!("{} lines of asm", &lines.len());
+    for g in globals {
+        println!("{:?}", g);
+    }
 }

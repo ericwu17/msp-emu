@@ -1,14 +1,23 @@
 pub mod parse_operand;
+
 use crate::{
     asm_line::{AsmLine, Operand, Reg, CC},
     get_verbs::parse_operand::parse_operand,
     source_cursor::SourceCodeCursor,
 };
 
-pub fn get_tokens(source_code_contents: String) -> Vec<AsmLine> {
+#[derive(Debug)]
+pub struct Global {
+    label: String,
+    initial_bytes: Vec<u8>,
+}
+
+pub fn get_tokens(source_code_contents: String) -> (Vec<Global>, Vec<AsmLine>) {
     let mut cursor = SourceCodeCursor::new(source_code_contents);
 
-    let mut lines = Vec::new();
+    let mut globals = Vec::new();
+
+    let mut lines: Vec<AsmLine> = Vec::new();
 
     while cursor.peek().is_some() {
         // this loop will consume one line per iteration:
@@ -18,6 +27,20 @@ pub fn get_tokens(source_code_contents: String) -> Vec<AsmLine> {
         match cursor.peek() {
             None => break,
             Some('\n') | Some(';') | Some('.') => {
+                if cursor.begins_with(".bits") {
+                    // parse a global variable declaration
+                    for _ in 0..5 {
+                        cursor.next();
+                    }
+                    consume_whitespace(&mut cursor);
+                    let label = lines.pop().unwrap().as_label_str();
+                    let initial_bytes = parse_initial_bytes(&mut cursor);
+
+                    globals.push(Global {
+                        label,
+                        initial_bytes,
+                    });
+                }
                 // empty line or comment/directive. Consume the empty line.
                 consume_rest_of_line(&mut cursor);
             }
@@ -250,7 +273,7 @@ pub fn get_tokens(source_code_contents: String) -> Vec<AsmLine> {
         }
     }
 
-    return lines;
+    return (globals, lines);
 }
 
 fn parse_jmp_label(cursor: &mut SourceCodeCursor) -> String {
@@ -277,4 +300,28 @@ pub fn consume_whitespace(cursor: &mut SourceCodeCursor) {
     while cursor.peek() == Some(' ') || cursor.peek() == Some('\t') {
         cursor.next();
     }
+}
+
+pub fn parse_initial_bytes(cursor: &mut SourceCodeCursor) -> Vec<u8> {
+    consume_whitespace(cursor);
+    assert!(cursor.begins_with("0x"));
+    cursor.next();
+    cursor.next();
+
+    let mut base_16_lit = String::new();
+    while cursor.peek().is_some() && cursor.peek().unwrap().is_digit(16) {
+        base_16_lit.push(cursor.next().unwrap());
+    }
+    assert_eq!(Some(','), cursor.next());
+    let mut num_bits_base_10_lit = String::new();
+    while cursor.peek().is_some() && cursor.peek().unwrap().is_numeric() {
+        num_bits_base_10_lit.push(cursor.next().unwrap());
+    }
+
+    let base_16_int = u64::from_str_radix(&base_16_lit, 16).unwrap();
+    let num_bytes = usize::from_str_radix(&num_bits_base_10_lit, 10).unwrap() / 8;
+
+    let bytes = base_16_int.to_le_bytes();
+
+    bytes.into_iter().take(num_bytes).collect()
 }

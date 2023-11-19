@@ -1,5 +1,5 @@
 use crate::{
-    asm_line::{Operand, Reg},
+    operand::{Operand, Reg},
     source_cursor::SourceCodeCursor,
 };
 
@@ -23,10 +23,19 @@ pub fn parse_operand(cursor: &mut SourceCodeCursor) -> Operand {
 
     if cursor.peek() == Some('&') {
         cursor.next();
+
+        if cursor.begins_with("0x") {
+            cursor.next();
+            cursor.next();
+            let s = parse_label(cursor);
+            let imm_addr = u16::from_str_radix(&s, 16).unwrap();
+            return Operand::Abs(imm_addr);
+        }
+
         let s = parse_label(cursor);
         assert_eq!(cursor.next().unwrap(), '+');
         assert_eq!(cursor.next().unwrap(), '0');
-        return Operand::Absolute(s);
+        return Operand::AbsLabel(s);
     }
 
     let offset: i16 = parse_signed_int(cursor).unwrap();
@@ -106,7 +115,8 @@ fn parse_imm(cursor: &mut SourceCodeCursor) -> Option<Operand> {
     let mut imm_str = String::new();
     while local_cursor.peek().is_some()
         && (local_cursor.peek().unwrap().is_ascii_alphanumeric()
-            || local_cursor.peek().unwrap() == '_')
+            || local_cursor.peek().unwrap() == '_'
+            || local_cursor.peek().unwrap() == '-')
     {
         imm_str.push(local_cursor.next().unwrap());
     }
@@ -116,6 +126,14 @@ fn parse_imm(cursor: &mut SourceCodeCursor) -> Option<Operand> {
         Ok(x) => {
             *cursor = local_cursor;
             return Some(Operand::Imm(x));
+        }
+        Err(_) => {}
+    };
+    let imm_i16 = i16::from_str_radix(&imm_str, 10);
+    match imm_i16 {
+        Ok(x) => {
+            *cursor = local_cursor;
+            return Some(Operand::Imm(x as u16));
         }
         Err(_) => {
             return Some(Operand::ImmLabel(imm_str));

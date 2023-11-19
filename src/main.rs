@@ -1,5 +1,8 @@
 pub mod asm_line;
+pub mod byte_generator;
+pub mod ccode;
 pub mod get_verbs;
+pub mod operand;
 pub mod source_cursor;
 
 use std::fs::File;
@@ -7,6 +10,8 @@ use std::io::Read;
 use std::process::exit;
 use std::process::Command;
 use std::str;
+
+use crate::byte_generator::generate_bytes;
 
 const C_FILE_NAME: &str = "./main.c";
 const GENERATED_ASM_NAME: &str = "./main.asm";
@@ -16,6 +21,7 @@ fn main() {
         "/Applications/ti/ccs1220/ccs/tools/compiler/ti-cgt-msp430_21.6.1.LTS/bin/cl430",
     )
     .args([
+        // "--asm_listing",
         "--skip_assembler",
         "--symdebug:none",
         "--use_hw_mpy=none",
@@ -42,7 +48,12 @@ fn main() {
         println!("{:?}", l);
     }
     println!("{} lines of asm", &lines.len());
-    for g in globals {
+    for g in &globals {
         println!("{:?}", g);
+    }
+
+    let bytes = generate_bytes(globals, lines);
+    for byte in bytes {
+        println!("{:X}", byte);
     }
 }

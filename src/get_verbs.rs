@@ -1,15 +1,17 @@
 pub mod parse_operand;
 
 use crate::{
-    asm_line::{AsmLine, Operand, Reg, CC},
+    asm_line::AsmLine,
+    ccode::CC,
     get_verbs::parse_operand::parse_operand,
+    operand::{Operand, Reg},
     source_cursor::SourceCodeCursor,
 };
 
 #[derive(Debug)]
 pub struct Global {
-    label: String,
-    initial_bytes: Vec<u8>,
+    pub label: String,
+    pub initial_bytes: Vec<u8>,
 }
 
 pub fn get_tokens(source_code_contents: String) -> (Vec<Global>, Vec<AsmLine>) {
@@ -77,19 +79,19 @@ pub fn get_tokens(source_code_contents: String) -> (Vec<Global>, Vec<AsmLine>) {
                                     lines.push(AsmLine::RRC(operand, is_byte_instr));
                                 }
                                 "SWPB" => {
-                                    lines.push(AsmLine::SWPB(operand));
+                                    lines.push(AsmLine::SWPB(operand, false));
                                 }
                                 "RRA" => {
                                     lines.push(AsmLine::RRA(operand, is_byte_instr));
                                 }
                                 "SXT" => {
-                                    lines.push(AsmLine::SXT(operand));
+                                    lines.push(AsmLine::SXT(operand, false));
                                 }
                                 "PUSH" => {
                                     lines.push(AsmLine::PUSH(operand, is_byte_instr));
                                 }
                                 "CALL" => {
-                                    lines.push(AsmLine::CALL(operand));
+                                    lines.push(AsmLine::CALL(operand, false));
                                 }
                                 _ => unreachable!(),
                             }

@@ -21,8 +21,8 @@ fn main() {
         "/Applications/ti/ccs1220/ccs/tools/compiler/ti-cgt-msp430_21.6.1.LTS/bin/cl430",
     )
     .args([
-        // "--asm_listing",
-        "--skip_assembler",
+        "--asm_listing",
+        // "--skip_assembler",
         "--symdebug:none",
         "--use_hw_mpy=none",
         "--opt_level=off",

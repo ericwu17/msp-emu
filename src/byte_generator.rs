@@ -9,6 +9,7 @@ use crate::{
 
 const STACK_INIT_POSITION: u16 = 0x8000;
 
+#[derive(Debug)]
 pub enum UnresolvedLabel {
     FullWord { offset: usize, label: String },
     Low10Bits { offset: usize, label: String },
@@ -37,10 +38,8 @@ pub fn generate_bytes(globals: Vec<Global>, instrs: Vec<AsmLine>) -> Vec<u8> {
         );
     }
 
-    let mut globals_map: HashMap<String, usize> = HashMap::new();
-
     for global in globals {
-        globals_map.insert(global.label, result_bytes.len());
+        label_map.insert(global.label, result_bytes.len());
         result_bytes.extend(global.initial_bytes);
     }
     if result_bytes.len() % 2 != 0 {
@@ -57,7 +56,8 @@ pub fn generate_bytes(globals: Vec<Global>, instrs: Vec<AsmLine>) -> Vec<u8> {
             &mut label_map,
         )
     }
-    // TODO: resolve labels
+
+    resolve_labels(&mut result_bytes, &unresolved_labels, &label_map);
 
     result_bytes
 }
@@ -214,8 +214,6 @@ fn convert_instr_to_bytes(
 }
 
 fn optimize_zero_index_instr(instr: &mut AsmLine) {
-    println!("optimizing zero index");
-    println!("{:?}", instr);
     match instr {
         AsmLine::Label(_) => {}
         AsmLine::Jump(_, _) => {}
@@ -239,10 +237,46 @@ fn optimize_zero_index_instr(instr: &mut AsmLine) {
         | AsmLine::XOR(src, _, _)
         | AsmLine::AND(src, _, _) => match src {
             Operand::IndexedReg(reg, 0) => {
-                println!("here");
                 *src = Operand::Indirect(*reg);
             }
             _ => {}
         },
+    }
+}
+
+fn resolve_labels(
+    result_bytes: &mut Vec<u8>,
+    unresolved_labels: &Vec<UnresolvedLabel>,
+    label_map: &HashMap<String, usize>,
+) {
+    for unres_label in unresolved_labels {
+        match unres_label {
+            UnresolvedLabel::FullWord { offset, label } => {
+                let label_location = label_map.get(label).unwrap();
+                let word = *label_location as u16;
+
+                let [low_byte, high_byte] = word.to_le_bytes();
+                result_bytes[*offset] = low_byte;
+                result_bytes[*offset + 1] = high_byte;
+            }
+            UnresolvedLabel::Low10Bits { offset, label } => {
+                let label_location = label_map.get(label).unwrap();
+                let difference_in_addrs = *label_location as i64 - *offset as i64;
+                assert!(difference_in_addrs % 2 == 0);
+                let signed_offset = difference_in_addrs / 2;
+
+                println!("resolving {} with signed offset {}", label, signed_offset);
+
+                // check that the signed offset will fit in 10 bits
+                if signed_offset > 511 || signed_offset < -512 {
+                    panic!("trying to jump too far!");
+                }
+                let signed_offset_bits = (signed_offset as i16) & 0x03FF;
+
+                let [low_byte, high_byte] = signed_offset_bits.to_le_bytes();
+                result_bytes[*offset] = low_byte;
+                result_bytes[*offset + 1] |= high_byte;
+            }
+        }
     }
 }

@@ -27,6 +27,10 @@ pub fn generate_bytes(globals: Vec<Global>, instrs: Vec<AsmLine>) -> Vec<u8> {
 
     let mut result_bytes = Vec::new();
     let mut unresolved_labels: Vec<UnresolvedLabel> = Vec::new();
+    unresolved_labels.push(UnresolvedLabel::Low10Bits {
+        offset: 4,
+        label: "main".to_owned(),
+    });
     let mut label_map: HashMap<String, usize> = HashMap::new();
 
     for instr in initial_instrs {
@@ -264,8 +268,6 @@ fn resolve_labels(
                 let difference_in_addrs = *label_location as i64 - *offset as i64;
                 assert!(difference_in_addrs % 2 == 0);
                 let signed_offset = difference_in_addrs / 2;
-
-                println!("resolving {} with signed offset {}", label, signed_offset);
 
                 // check that the signed offset will fit in 10 bits
                 if signed_offset > 511 || signed_offset < -512 {

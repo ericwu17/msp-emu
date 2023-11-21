@@ -256,22 +256,30 @@ fn resolve_labels(
     for unres_label in unresolved_labels {
         match unres_label {
             UnresolvedLabel::FullWord { offset, label } => {
-                let label_location = label_map.get(label).unwrap();
-                let word = *label_location as u16;
+                let label_location = label_map.get(label);
+                let label_location = match label_location {
+                    None => panic!("unresolved label {}", label),
+                    Some(l) => *l,
+                };
+                let word = label_location as u16;
 
                 let [low_byte, high_byte] = word.to_le_bytes();
                 result_bytes[*offset] = low_byte;
                 result_bytes[*offset + 1] = high_byte;
             }
             UnresolvedLabel::Low10Bits { offset, label } => {
-                let label_location = label_map.get(label).unwrap();
-                let difference_in_addrs = *label_location as i64 - *offset as i64;
+                let label_location = label_map.get(label);
+                let label_location = match label_location {
+                    None => panic!("unresolved label {}", label),
+                    Some(l) => *l,
+                };
+                let difference_in_addrs = label_location as i64 - *offset as i64;
                 assert!(difference_in_addrs % 2 == 0);
                 let signed_offset = difference_in_addrs / 2;
 
                 // check that the signed offset will fit in 10 bits
                 if signed_offset > 511 || signed_offset < -512 {
-                    panic!("trying to jump too far!");
+                    panic!("trying to jump too far with label {}!", label);
                 }
                 let signed_offset_bits = (signed_offset as i16) & 0x03FF;
 

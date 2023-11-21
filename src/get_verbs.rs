@@ -135,7 +135,7 @@ pub fn get_tokens(source_code_contents: String) -> (Vec<Global>, Vec<AsmLine>) {
                         }
 
                         "MOV" | "ADD" | "ADDC" | "SUB" | "SUBC" | "CMP" | "DADD" | "BIT"
-                        | "BIC" | "BIS" | "XOR" | "AND" => {
+                        | "BIC" | "BIS" | "OR" | "XOR" | "AND" => {
                             // DOUBLE OPERAND FAMILY
                             consume_whitespace(&mut cursor);
                             let operand_1 = parse_operand(&mut cursor);
@@ -169,7 +169,7 @@ pub fn get_tokens(source_code_contents: String) -> (Vec<Global>, Vec<AsmLine>) {
                                 "BIC" => {
                                     lines.push(AsmLine::BIC(operand_1, operand_2, is_byte_instr));
                                 }
-                                "BIS" => {
+                                "BIS" | "OR" => {
                                     lines.push(AsmLine::BIS(operand_1, operand_2, is_byte_instr));
                                 }
                                 "XOR" => {
@@ -311,9 +311,10 @@ pub fn consume_whitespace(cursor: &mut SourceCodeCursor) {
 
 pub fn parse_initial_bytes(cursor: &mut SourceCodeCursor) -> Vec<u8> {
     consume_whitespace(cursor);
-    assert!(cursor.begins_with("0x"));
-    cursor.next();
-    cursor.next();
+    if cursor.begins_with("0x") {
+        cursor.next();
+        cursor.next();
+    }
 
     let mut base_16_lit = String::new();
     while cursor.peek().is_some() && cursor.peek().unwrap().is_digit(16) {

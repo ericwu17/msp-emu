@@ -1,0 +1,81 @@
+
+Stage 0:
+  Load instruction word and following two words from memory
+  {mem[pc], mem[pc+1]}    -> curr_instr
+  {mem[pc+2], mem[pc+3]}  -> next_word
+  {mem[pc+4], mem[pc+5]}  -> next_next_word
+
+Stage 1:
+  Decode instruction into its parts
+    -> src_addr_mode
+    -> dst_addr_mode
+    -> is_byte_instr
+    -> opcode
+    -> src_reg_id
+    -> dst_reg_id
+
+Stage 2a:
+  Calculate memory read address for source operand, if needed
+       -> mem_read_addr_0
+   0/1 -> inc_src_reg              // for indirect auto-inc
+   0/1 -> used_instr_word_for_src  
+
+Stage 2b:
+  Load operand_0 (possibly reading from memory)
+      -> operand_0
+
+Stage 3a:
+  Calculate memory read address for dst operand, if needed
+      -> mem_read_addr_1
+  0/1 -> used_instr_word_for_dst
+
+Stage 3b:
+  Load operand_1 (possibly reading from memory)
+    -> operand_1
+
+Stage 4:
+  Calculate result
+  
+  0/1 -> dec sp
+
+  2-bit fields representing an optional new value for flags:
+      -> new_cf 
+      -> new_zf 
+      -> new_nf 
+      -> new_vf 
+
+
+  result -> result
+
+  for double operand instructions, result is stored in destination
+  for single operand instructions, result is stored in src reg
+  for CALL and PUSH, result is stored on stack, and dec_sp is true.
+  for CALL, we also set new_pc_val to the new program counter val, and set jump_taken.
+
+
+  
+  for jump instructions:
+          0/1 -> jump_taken
+  new pc addr -> new_pc_val
+
+
+Stage 5:
+  Write result to register and/or memory, and set new program counter.
+
+  if inc_src_reg, increment the source reg by 1 or 2.
+
+  if need to write to mem, then write to mem at addr mem_read_addr_0 or mem_read_addr_1
+  if need to write to reg, write result to reg.
+
+  Set new program counter
+  
+  default: +2, +4, or +6 depending on (used_instr_word_for_src, used_instr_word_for_dst)
+  if jump_taken:
+    new_pc_addr + 2 -> regs[0]
+
+
+  calculate whether we need to write to memory
+  ??? -> mem_write_addr
+
+stage 5b:
+  if need to write to mem, then write to mem at the address needed.

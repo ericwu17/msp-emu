@@ -4,9 +4,12 @@ pub mod byte_generator;
 pub mod ccode;
 pub mod emulator;
 pub mod get_verbs;
+pub mod graphics;
 pub mod operand;
 pub mod source_cursor;
 
+use graphics::{draw_leds, draw_monitor, draw_switches, get_curr_button_states};
+use macroquad::prelude::*;
 use std::fs::File;
 use std::io::Read;
 use std::process::exit;
@@ -19,7 +22,8 @@ use crate::emulator::Emulator;
 const C_FILE_NAME: &str = "./main.c";
 const GENERATED_ASM_NAME: &str = "./main.asm";
 
-fn main() {
+#[macroquad::main("Assembler Emulator")]
+async fn main() {
     let output = Command::new(
         "/Applications/ti/ccs1220/ccs/tools/compiler/ti-cgt-msp430_21.6.1.LTS/bin/cl430",
     )
@@ -52,8 +56,21 @@ fn main() {
     println!("{:X?}", &bytes);
     let mut emulator = Emulator::new(&bytes);
 
-    dbg!(&emulator);
-    for _ in 0..10 {
-        emulator.run_one_instr();
+    let mut curr_switch_states = 0u16;
+
+    emulator.run_some_instrs();
+    loop {
+        clear_background(LIGHTGRAY);
+
+        let gfx_buf = emulator.get_gfx_buffer();
+
+        draw_monitor(10.0, 10.0, 640.0, 480.0, gfx_buf).await;
+
+        draw_leds(10.0, 500.0, emulator.get_led_output()).await;
+        draw_switches(10.0, 520.0, &mut curr_switch_states).await;
+        emulator.set_switch_states(curr_switch_states);
+        emulator.set_button_states(get_curr_button_states().await);
+
+        next_frame().await;
     }
 }

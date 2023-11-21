@@ -1,13 +1,24 @@
 pub mod double_operand;
 pub mod single_operand;
+pub mod stages;
 
-use self::{double_operand::process_double_operand_w, single_operand::process_single_operand_w};
+use self::stages::{
+    stage_0::{exec_stage_0, Stage0Result},
+    stage_1::{exec_stage_1, Stage1Result},
+    stage_2::{exec_stage_2a, exec_stage_2b, Stage2AResult, Stage2BResult},
+    stage_3::{exec_stage_3a, exec_stage_3b, Stage3AResult, Stage3BResult},
+    stage_4::{exec_stage_4, Stage4Result},
+    stage_5::{exec_stage_5a, exec_stage_5b, Stage5Result},
+};
 use std::fmt;
 
 pub struct Emulator {
     pub mem: [u8; 65536],
     regs: [u16; 16],
+
     curr_instr: u16,
+    next_word: u16,
+    next_next_word: u16,
 
     opcode: u16, // this will be a 3 or 4 bit quantity depending on which instruction family is being executed
     src_reg_id: u16, // 4 bit quantity
@@ -17,10 +28,14 @@ pub struct Emulator {
 
     is_byte_instr: bool, // 1 bit quantity
 
+    operand_0: u16,
     operand_1: u16,
-    operand_2: u16,
 
-    mem_read_addr: u16,
+    mem_read_addr_0: u16,
+    used_instr_word_for_src: bool,
+
+    mem_read_addr_1: u16,
+    used_instr_word_for_dst: bool,
 
     inc_src_reg: bool,
     dec_sp: bool,
@@ -31,8 +46,9 @@ pub struct Emulator {
     new_vf: Option<bool>,
 
     result: u16,
+    new_pc_val: u16, // if this value is nonzero, that means jump is taken. Otherwise, jump is not taken.
 
-    jump_taken: bool,
+    mem_write_addr: u16,
 }
 
 impl fmt::Debug for Emulator {
@@ -57,343 +73,191 @@ impl Emulator {
         emulator
     }
 
+    pub fn get_gfx_buffer(&self) -> &[u8] {
+        return &self.mem.as_slice()[0x8000..=0x895F];
+    }
+
+    pub fn get_led_output(&self) -> u16 {
+        return u16::from_le_bytes([self.mem[0x8A04], self.mem[0x8A05]]);
+    }
+    pub fn set_switch_states(&mut self, new_states: u16) {
+        [self.mem[0x8A00], self.mem[0x8A01]] = new_states.to_le_bytes();
+    }
+    pub fn set_button_states(&mut self, new_states: u8) {
+        self.mem[0x8A02] = new_states;
+    }
+
+    pub fn run_some_instrs(&mut self) {
+        for _ in 0..20 {
+            self.run_one_instr();
+        }
+    }
+
     pub fn run_one_instr(&mut self) {
-        self.stage_1();
+        self.stage_0();
         println!("{:X}", self.curr_instr);
-        self.stage_2();
+        self.stage_1();
         println!(
             "{:X} {:X} {} {:X}",
             self.src_addr_mode, self.dst_addr_mode, self.is_byte_instr, self.opcode
         );
         println!("{:X} {:X}", self.src_reg_id, self.dst_reg_id,);
+        self.stage_2a();
+        println!("{:X}", self.mem_read_addr_0);
+        self.stage_2b();
         self.stage_3a();
-        println!("{:X}", self.mem_read_addr);
         self.stage_3b();
-        self.stage_4a();
-        self.stage_4b();
-        println!("{:X} {:X}", self.operand_1, self.operand_2);
-        self.stage_5();
+        println!("{:X} {:X}", self.operand_0, self.operand_1);
+        self.stage_4();
         println!("{:X}", self.result);
-        self.stage_6();
-        self.stage_n();
+        self.stage_5a();
+        self.stage_5b();
 
         println!("finished instr with regs {:?}", self);
+        println!("stack is {:X?}", &self.mem[0x7FF0..=0x8000])
+    }
+
+    fn stage_0(&mut self) {
+        // load current instruction and subsequent words
+        let Stage0Result {
+            curr_instr,
+            next_word,
+            next_next_word,
+        } = exec_stage_0(&self.mem, self.regs[0]);
+        self.curr_instr = curr_instr;
+        self.next_word = next_word;
+        self.next_next_word = next_next_word;
     }
 
     fn stage_1(&mut self) {
-        // load current instruction
-        let low_byte = self.mem[self.regs[0] as usize];
-        let high_byte = self.mem[(self.regs[0] + 1) as usize];
-        self.curr_instr = u16::from_le_bytes([low_byte, high_byte]);
+        // decode instruction
+        let Stage1Result {
+            src_addr_mode,
+            dst_addr_mode,
+            is_byte_instr,
+            opcode,
+            src_reg_id,
+            dst_reg_id,
+        } = exec_stage_1(self.curr_instr);
+
+        self.src_addr_mode = src_addr_mode;
+        self.dst_addr_mode = dst_addr_mode;
+        self.is_byte_instr = is_byte_instr;
+        self.opcode = opcode;
+        self.src_reg_id = src_reg_id;
+        self.dst_reg_id = dst_reg_id;
     }
 
-    fn stage_2(&mut self) {
-        // decode instruction
-        self.src_addr_mode = (self.curr_instr >> 4) & 0x3;
-        self.dst_addr_mode = (self.curr_instr >> 7) & 0x1;
-        self.is_byte_instr = (self.curr_instr >> 6) & 0x1 == 1;
+    fn stage_2a(&mut self) {
+        // calculate memory load address
+        let Stage2AResult {
+            mem_read_addr_0,
+            inc_src_reg,
+            used_instr_word_for_src,
+        } = exec_stage_2a(
+            self.curr_instr,
+            self.next_word,
+            self.src_addr_mode,
+            self.src_reg_id,
+            &self.regs,
+        );
+        self.mem_read_addr_0 = mem_read_addr_0;
+        self.inc_src_reg = inc_src_reg;
+        self.used_instr_word_for_src = used_instr_word_for_src;
+    }
 
-        if (self.curr_instr & 0xE000) == 0 {
-            self.opcode = (self.curr_instr >> 7) & 0x7;
-        } else if (self.curr_instr & 0xC000) == 0 {
-            self.opcode = (self.curr_instr >> 10) & 0x7;
-        } else {
-            self.opcode = (self.curr_instr >> 12) & 0xF;
-        }
-
-        if (self.curr_instr & 0xE000) == 0 {
-            self.src_reg_id = self.curr_instr & 0x0F;
-        } else {
-            self.src_reg_id = (self.curr_instr >> 8) & 0x0F;
-            self.dst_reg_id = self.curr_instr & 0x0F;
-        }
+    fn stage_2b(&mut self) {
+        // load operand 0
+        let Stage2BResult { operand_0 } = exec_stage_2b(
+            self.curr_instr,
+            self.src_addr_mode,
+            self.src_reg_id,
+            self.mem_read_addr_0,
+            &self.mem,
+            &self.regs,
+        );
+        self.operand_0 = operand_0;
     }
 
     fn stage_3a(&mut self) {
-        // calculate memory load address
-
-        // if the current instruction takes a source register
-        if (self.curr_instr & 0xE000) == 0 || (self.curr_instr & 0xC000) != 0 {
-            self.inc_src_reg = false;
-            match self.src_addr_mode {
-                1 => {
-                    // if src_reg_id == 3 then it's an immediate
-                    if self.src_reg_id != 3 {
-                        let low_byte = self.mem[(self.regs[0] + 2) as usize];
-                        let high_byte = self.mem[(self.regs[0] + 3) as usize];
-                        self.regs[0] += 2;
-                        let next_instr_stream_word = u16::from_le_bytes([low_byte, high_byte]);
-                        if self.src_reg_id == 2 {
-                            // absolute addressing
-                            self.mem_read_addr = next_instr_stream_word;
-                        } else {
-                            // indexed addressing
-                            self.mem_read_addr =
-                                self.regs[self.src_reg_id as usize] + next_instr_stream_word;
-                        }
-                    }
-                }
-                2 => {
-                    // indirect addressing mode
-                    self.mem_read_addr = self.regs[self.src_reg_id as usize];
-                }
-                3 => {
-                    if self.src_reg_id == 0 {
-                        // immediate
-                        self.mem_read_addr = self.regs[0] + 2;
-                        self.regs[0] += 2;
-                    } else {
-                        // indirect addressing mode
-                        self.mem_read_addr = self.regs[self.src_reg_id as usize];
-                        self.inc_src_reg = true;
-                    }
-                }
-                0 => {}
-                _ => unreachable!(),
-            }
-        }
+        let Stage3AResult {
+            mem_read_addr_1,
+            used_instr_word_for_dst,
+        } = exec_stage_3a(
+            self.curr_instr,
+            self.next_word,
+            self.next_next_word,
+            self.used_instr_word_for_src,
+            self.dst_addr_mode,
+            self.dst_reg_id,
+            &self.regs,
+        );
+        self.mem_read_addr_1 = mem_read_addr_1;
+        self.used_instr_word_for_dst = used_instr_word_for_dst;
     }
 
     fn stage_3b(&mut self) {
-        // load operand 1
-
-        // if the current instruction takes a source register
-        if (self.curr_instr & 0xE000) == 0 || (self.curr_instr & 0xC000) != 0 {
-            match self.src_addr_mode {
-                0 => {
-                    self.operand_1 = self.regs[self.src_reg_id as usize];
-                }
-                1 => {
-                    if self.src_reg_id == 3 {
-                        self.operand_1 = 1; // immediate
-                    } else {
-                        // Absolute addressing mode or indexed addressing. Do a memory read:
-                        let low_byte = self.mem[self.mem_read_addr as usize];
-                        let high_byte = self.mem[(self.mem_read_addr + 1) as usize];
-                        self.operand_1 = u16::from_le_bytes([low_byte, high_byte]);
-                    }
-                }
-                2 => {
-                    if self.src_reg_id == 2 {
-                        self.operand_1 = 4; // immediate
-                    } else if self.src_reg_id == 3 {
-                        self.operand_1 = 2; // immediate
-                    } else {
-                        // indirect addressing mode. Do a memory read:
-                        let low_byte = self.mem[self.mem_read_addr as usize];
-                        let high_byte = self.mem[(self.mem_read_addr + 1) as usize];
-                        self.operand_1 = u16::from_le_bytes([low_byte, high_byte]);
-                    }
-                }
-                3 => {
-                    if self.src_reg_id == 2 {
-                        self.operand_1 = 8; // immediate
-                    } else if self.src_reg_id == 3 {
-                        self.operand_1 = 0xFFFF; // immediate -1.
-                    } else {
-                        // indirect auto-increment addressing mode, or immediate from instr stream. Do a memory read:
-                        let low_byte = self.mem[self.mem_read_addr as usize];
-                        let high_byte = self.mem[(self.mem_read_addr + 1) as usize];
-                        self.operand_1 = u16::from_le_bytes([low_byte, high_byte]);
-                    }
-                }
-                _ => unreachable!(),
-            }
-        } else {
-            // curr instr is a jump, so operand_1 will contain the destination address calculated here
-            let mut signed_offset = (self.curr_instr & 0x03FF) * 2;
-            if signed_offset & 0x0400 != 0 {
-                signed_offset |= 0xF800;
-            }
-            self.operand_1 = self.regs[0] + signed_offset;
-        }
+        let Stage3BResult { operand_1 } =
+            exec_stage_3b(self.dst_reg_id, self.mem_read_addr_1, &self.mem, &self.regs);
+        self.operand_1 = operand_1;
     }
 
-    fn stage_4a(&mut self) {
-        // calculate memory load address
-
-        // if the current instruction takes a dst register
-        if (self.curr_instr & 0xC000) != 0 {
-            match self.dst_addr_mode {
-                1 => {
-                    let low_byte = self.mem[(self.regs[0] + 2) as usize];
-                    let high_byte = self.mem[(self.regs[0] + 3) as usize];
-                    self.regs[0] += 2;
-                    let next_instr_stream_word = u16::from_le_bytes([low_byte, high_byte]);
-                    if self.dst_reg_id == 2 {
-                        // absolute addressing
-                        self.mem_read_addr = next_instr_stream_word;
-                    } else {
-                        // indexed addressing
-                        self.mem_read_addr =
-                            self.regs[self.dst_reg_id as usize] + next_instr_stream_word;
-                    }
-                }
-                0 => {}
-                _ => unreachable!(),
-            }
-        }
-    }
-
-    fn stage_4b(&mut self) {
-        // load operand 2
-
-        if (self.curr_instr & 0xE000) == 0 || (self.curr_instr & 0xC000) != 0 {
-            match self.dst_addr_mode {
-                1 => {
-                    let low_byte = self.mem[self.mem_read_addr as usize];
-                    let high_byte = self.mem[(self.mem_read_addr + 1) as usize];
-                    self.operand_2 = u16::from_le_bytes([low_byte, high_byte]);
-                }
-                0 => {
-                    self.operand_2 = self.regs[self.dst_reg_id as usize];
-                }
-                _ => unreachable!(),
-            }
-        }
-    }
-
-    fn stage_5(&mut self) {
+    fn stage_4(&mut self) {
         // calculate result
-        self.dec_sp = false;
-
-        self.new_cf = None;
-        self.new_zf = None;
-        self.new_nf = None;
-        self.new_vf = None;
-
-        if (self.curr_instr & 0xE000) == 0 {
-            // single operand instruction
-            let carry_bit = self.regs[2] & 0x01 != 0;
-            (
-                self.result,
-                self.new_cf,
-                self.new_zf,
-                self.new_nf,
-                self.new_vf,
-                self.dec_sp,
-            ) = process_single_operand_w(self.operand_1, carry_bit, self.opcode);
-        } else if (self.curr_instr & 0xC000) == 0 {
-            let sr = self.regs[2];
-            let carry_flag = sr & 0x01 != 0;
-            let zero_flag = sr & 0x02 != 0;
-            let neg_flag = sr & 0x04 != 0;
-            let overflow_flag = sr & 0x100 != 0;
-            match self.opcode {
-                0 => self.jump_taken = !zero_flag,                  // JNZ
-                1 => self.jump_taken = zero_flag,                   // JZ
-                2 => self.jump_taken = !carry_flag,                 // JNC
-                3 => self.jump_taken = carry_flag,                  // JC
-                4 => self.jump_taken = neg_flag,                    // JN
-                5 => self.jump_taken = !(neg_flag ^ overflow_flag), // JGE
-                6 => self.jump_taken = neg_flag ^ overflow_flag,    // JL
-                7 => self.jump_taken = true,                        // JMP
-                _ => unreachable!(),
-            }
-            self.result = self.operand_1;
-        } else {
-            // double operand instruction
-            let carry_bit = self.regs[2] & 0x01 != 0;
-            (
-                self.result,
-                self.new_cf,
-                self.new_zf,
-                self.new_nf,
-                self.new_vf,
-            ) = process_double_operand_w(self.operand_1, self.operand_2, carry_bit, self.opcode);
-        }
-    }
-    fn stage_6(&mut self) {
-        // write result to register or memory
-        if let Some(new_cf) = self.new_cf {
-            if new_cf {
-                self.regs[2] |= 0x1;
-            } else {
-                self.regs[2] &= !0x1;
-            }
-        }
-        if let Some(new_zf) = self.new_zf {
-            if new_zf {
-                self.regs[2] |= 0x2;
-            } else {
-                self.regs[2] &= !0x2;
-            }
-        }
-        if let Some(new_nf) = self.new_nf {
-            if new_nf {
-                self.regs[2] |= 0x4;
-            } else {
-                self.regs[2] &= !0x4;
-            }
-        }
-        if let Some(new_vf) = self.new_vf {
-            if new_vf {
-                self.regs[2] |= 0x100;
-            } else {
-                self.regs[2] &= !0x100;
-            }
-        }
-        if self.dec_sp {
-            self.regs[1] -= 2;
-        }
-        if self.inc_src_reg {
-            self.regs[self.src_reg_id as usize] += 2; // TODO: handle b/w
-        }
-
-        if (self.curr_instr & 0xE000) == 0 {
-            // single operand instr
-            match self.src_addr_mode {
-                0 => {
-                    self.regs[self.src_reg_id as usize] = self.result;
-                }
-                1 | 2 | 3 => {
-                    // indexed, indirect, absolute, or indirect auto-inc addressing mode
-                    // TODO: account for b/w
-                    let [low_byte, high_byte] = self.result.to_le_bytes();
-                    self.mem[self.mem_read_addr as usize] = low_byte;
-                    self.mem[(self.mem_read_addr + 1) as usize] = high_byte;
-                }
-                _ => unreachable!(),
-            }
-        } else if (self.curr_instr & 0xC000) == 0 {
-            // jmp instr
-            // do nothing (no result to write)
-        } else {
-            // double operand instr
-            if self.opcode == 0x9 || self.opcode == 0xB {
-                // operations cmp and tst do not write any results
-                return;
-            }
-            match self.dst_addr_mode {
-                0 => {
-                    self.regs[self.dst_reg_id as usize] = self.result;
-                }
-                1 => {
-                    // indexed, or absolute addressing mode
-                    // TODO: account for b/w
-                    let [low_byte, high_byte] = self.result.to_le_bytes();
-                    self.mem[self.mem_read_addr as usize] = low_byte;
-                    self.mem[(self.mem_read_addr + 1) as usize] = high_byte;
-                }
-                _ => unreachable!(),
-            }
-        }
+        let Stage4Result {
+            dec_sp,
+            new_cf,
+            new_zf,
+            new_nf,
+            new_vf,
+            result,
+            new_pc_val,
+        } = exec_stage_4(
+            self.curr_instr,
+            self.opcode,
+            self.operand_0,
+            self.operand_1,
+            &self.regs,
+        );
+        self.dec_sp = dec_sp;
+        self.new_cf = new_cf;
+        self.new_zf = new_zf;
+        self.new_nf = new_nf;
+        self.new_vf = new_vf;
+        self.result = result;
+        self.new_pc_val = new_pc_val;
     }
 
-    fn stage_n(&mut self) {
-        // set new instruction pointer
+    fn stage_5a(&mut self) {
+        let Stage5Result {
+            regs,
+            mem_write_addr,
+        } = exec_stage_5a(
+            self.regs,
+            self.inc_src_reg,
+            self.dec_sp,
+            self.new_cf,
+            self.new_zf,
+            self.new_nf,
+            self.new_vf,
+            self.src_reg_id,
+            self.dst_reg_id,
+            self.curr_instr,
+            self.opcode,
+            self.src_addr_mode,
+            self.dst_addr_mode,
+            self.result,
+            self.mem_read_addr_0,
+            self.mem_read_addr_1,
+            self.new_pc_val,
+            self.used_instr_word_for_src,
+            self.used_instr_word_for_dst,
+        );
+        self.regs = regs;
+        self.mem_write_addr = mem_write_addr;
+    }
 
-        if (self.curr_instr & 0xE000) == 0x2000 {
-            // JMP instruction
-            if self.jump_taken {
-                self.regs[0] = self.result + 2;
-            } else {
-                self.regs[0] += 2;
-            }
-        } else if (self.curr_instr & 0xFF80) == 1280 {
-            self.regs[0] = self.result + 2;
-        } else {
-            self.regs[0] += 2;
-        }
+    fn stage_5b(&mut self) {
+        exec_stage_5b(self.mem_write_addr, self.result, &mut self.mem);
     }
 }

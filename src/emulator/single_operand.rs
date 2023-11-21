@@ -61,6 +61,7 @@ pub fn process_single_operand_w(
         }
         4 => {
             // PUSH
+            dec_sp = true;
             result = operand_1;
         }
         5 => {

@@ -64,23 +64,22 @@ pub fn exec_stage_5a(
     if (curr_instr & 0xE000) == 0 {
         if opcode == 5 {
             // CALL
-            mem_write_addr = regs[0];
-        }
-        if opcode == 4 {
+            mem_write_addr = regs[1];
+        } else if opcode == 4 {
             // PUSH
             mem_write_addr = regs[1];
-        }
-
-        // single operand instr
-        match src_addr_mode {
-            0 => {
-                regs[src_reg_id as usize] = result;
+        } else {
+            // single operand instr
+            match src_addr_mode {
+                0 => {
+                    regs[src_reg_id as usize] = result;
+                }
+                1 | 2 | 3 => {
+                    // indexed, indirect, absolute, or indirect auto-inc addressing mode
+                    mem_write_addr = mem_read_addr_0;
+                }
+                _ => unreachable!(),
             }
-            1 | 2 | 3 => {
-                // indexed, indirect, absolute, or indirect auto-inc addressing mode
-                mem_write_addr = mem_read_addr_0;
-            }
-            _ => unreachable!(),
         }
     } else if (curr_instr & 0xC000) == 0 {
         // jmp instr

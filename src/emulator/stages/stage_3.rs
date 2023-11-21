@@ -34,7 +34,9 @@ pub fn exec_stage_3a(
                     mem_read_addr_1 = next_instr_stream_word;
                 } else {
                     // indexed addressing
-                    mem_read_addr_1 = regs[dst_reg_id as usize] + next_instr_stream_word;
+                    mem_read_addr_1 = regs[dst_reg_id as usize]
+                        .overflowing_add(next_instr_stream_word)
+                        .0;
                 }
             }
             0 => {

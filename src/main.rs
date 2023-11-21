@@ -58,8 +58,8 @@ async fn main() {
 
     let mut curr_switch_states = 0u16;
 
-    emulator.run_some_instrs();
     loop {
+        emulator.run_some_instrs();
         clear_background(LIGHTGRAY);
 
         let gfx_buf = emulator.get_gfx_buffer();

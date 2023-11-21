@@ -1,6 +1,7 @@
 pub mod double_operand;
 pub mod single_operand;
 pub mod stages;
+pub mod tests;
 
 use self::stages::{
     stage_0::{exec_stage_0, Stage0Result},
@@ -103,14 +104,16 @@ impl Emulator {
         );
         println!("{:X} {:X}", self.src_reg_id, self.dst_reg_id,);
         self.stage_2a();
-        println!("{:X}", self.mem_read_addr_0);
+        println!("mem_read_addr_0: {:X}", self.mem_read_addr_0);
         self.stage_2b();
         self.stage_3a();
+        println!("mem_read_addr_1: {:X}", self.mem_read_addr_1);
         self.stage_3b();
-        println!("{:X} {:X}", self.operand_0, self.operand_1);
+        println!("operands are {:X} {:X}", self.operand_0, self.operand_1);
         self.stage_4();
-        println!("{:X}", self.result);
+        println!("result is {:X}", self.result);
         self.stage_5a();
+        println!("mem_write_addr is {:X}", self.mem_write_addr);
         self.stage_5b();
 
         println!("finished instr with regs {:?}", self);

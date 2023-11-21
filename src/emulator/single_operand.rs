@@ -2,6 +2,7 @@ pub fn process_single_operand_w(
     operand_1: u16,
     carry_bit: bool,
     opcode: u16,
+    regs: &[u16],
 ) -> (
     u16,
     Option<bool>,
@@ -9,6 +10,7 @@ pub fn process_single_operand_w(
     Option<bool>,
     Option<bool>,
     bool,
+    u16,
 ) {
     let mut dec_sp = false;
 
@@ -16,6 +18,8 @@ pub fn process_single_operand_w(
     let mut new_zf = None;
     let mut new_nf = None;
     let mut new_vf = None;
+
+    let mut new_pc_val = 0;
 
     let result;
 
@@ -67,10 +71,12 @@ pub fn process_single_operand_w(
         5 => {
             // CALL
             dec_sp = true;
-            result = operand_1;
+            result = regs[0] + 2;
+
+            new_pc_val = operand_1;
         }
         _ => unreachable!(),
     }
 
-    return (result, new_cf, new_zf, new_nf, new_vf, dec_sp);
+    return (result, new_cf, new_zf, new_nf, new_vf, dec_sp, new_pc_val);
 }

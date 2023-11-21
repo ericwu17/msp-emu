@@ -39,8 +39,8 @@ pub fn exec_stage_4(
 
     if (curr_instr & 0xE000) == 0 {
         // single operand instruction
-        (result, new_cf, new_zf, new_nf, new_vf, dec_sp) =
-            process_single_operand_w(operand_0, carry_flag, opcode);
+        (result, new_cf, new_zf, new_nf, new_vf, dec_sp, new_pc_val) =
+            process_single_operand_w(operand_0, carry_flag, opcode, regs);
     } else if (curr_instr & 0xC000) == 0 {
         let jump_taken = match opcode {
             0 => !zero_flag,                  // JNZ

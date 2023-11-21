@@ -117,7 +117,8 @@ impl Emulator {
         self.stage_5b();
 
         println!("finished instr with regs {:?}", self);
-        println!("stack is {:X?}", &self.mem[0x7FF0..=0x8000])
+        println!("stack is {:X?}", &self.mem[0x7FF0..=0x8000]);
+        println!("VGA mem is {:X?}", &self.mem[0x8000..=0x8020]);
     }
 
     fn stage_0(&mut self) {

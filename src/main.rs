@@ -12,6 +12,7 @@ use graphics::{draw_leds, draw_monitor, draw_switches, get_curr_button_states};
 use macroquad::prelude::*;
 use std::fs::File;
 use std::io::Read;
+use std::io::Write;
 use std::process::exit;
 use std::process::Command;
 use std::str;
@@ -21,14 +22,24 @@ use crate::emulator::Emulator;
 
 const C_FILE_NAME: &str = "./main.c";
 const GENERATED_ASM_NAME: &str = "./main.asm";
+const OUTPUT_FILE_NAME: &str = "seq.code";
 
 #[macroquad::main("Assembler Emulator")]
 async fn main() {
+    Command::new("/Applications/ti/ccs1220/ccs/tools/compiler/ti-cgt-msp430_21.6.1.LTS/bin/cl430")
+        .args([
+            "--asm_listing",
+            "--symdebug:none",
+            "--use_hw_mpy=none",
+            "--opt_level=off",
+        ])
+        .arg(C_FILE_NAME)
+        .output()
+        .expect("failed to execute assembler process");
     let output = Command::new(
         "/Applications/ti/ccs1220/ccs/tools/compiler/ti-cgt-msp430_21.6.1.LTS/bin/cl430",
     )
     .args([
-        // "--asm_listing",
         "--skip_assembler",
         "--symdebug:none",
         "--use_hw_mpy=none",
@@ -53,7 +64,7 @@ async fn main() {
     let (globals, lines) = get_verbs::get_tokens(asm_contents);
 
     let bytes = generate_bytes(globals, lines);
-    println!("{:X?}", &bytes);
+    write_bytes_to_file(&bytes);
     let mut emulator = Emulator::new(&bytes);
 
     let mut curr_switch_states = 0u16;
@@ -72,5 +83,13 @@ async fn main() {
         emulator.set_button_states(get_curr_button_states().await);
 
         next_frame().await;
+    }
+}
+
+fn write_bytes_to_file(bytes: &Vec<u8>) {
+    let mut f = File::create(OUTPUT_FILE_NAME).expect("error creating output file.");
+    for byte in bytes {
+        f.write(format!("{:0>2X}\n", byte).as_bytes())
+            .expect("error writing to output file");
     }
 }

@@ -91,6 +91,9 @@ fn test_indexed_addressing() {
     let instrs: Vec<u16> = vec![
         0x403F, 0x8000, //  MOV.W  #0x8000,R15
         0x40BF, 0x1234, 0x0002, //  MOV.W  #0x1234,2(R15)
+        0x40BF, 0x2468, 0x0004, //  MOV.W  #0x2468,4(R15)
+        0x43BF, 0x0000, // MOV.W #-1, 0(R15)
+        0x43BF, 0x0000, // MOV.W #-1, 0(R15)
     ];
     let mut cpu_emu = Emulator::new(&convert_words_to_bytes(instrs));
     cpu_emu.run_one_instr();
@@ -100,6 +103,17 @@ fn test_indexed_addressing() {
     assert_eq!(cpu_emu.regs[0], 0xA);
     assert_eq!(cpu_emu.mem[0x8002], 0x34);
     assert_eq!(cpu_emu.mem[0x8003], 0x12);
+    cpu_emu.run_one_instr();
+    assert_eq!(cpu_emu.regs[0], 0x10);
+    assert_eq!(cpu_emu.mem[0x8004], 0x68);
+    assert_eq!(cpu_emu.mem[0x8005], 0x24);
+    cpu_emu.run_one_instr();
+    assert_eq!(cpu_emu.regs[0], 0x14);
+    assert_eq!(cpu_emu.mem[0x8000], 0xFF);
+    assert_eq!(cpu_emu.mem[0x8001], 0xFF);
+    cpu_emu.run_one_instr();
+    assert_eq!(cpu_emu.mem[0x8000], 0xFF);
+    assert_eq!(cpu_emu.mem[0x8001], 0xFF);
 }
 
 #[test]

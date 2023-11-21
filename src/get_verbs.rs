@@ -221,6 +221,11 @@ pub fn get_tokens(source_code_contents: String) -> (Vec<Global>, Vec<AsmLine>) {
                             let operand = parse_operand(&mut cursor);
                             lines.push(AsmLine::ADD(Operand::Imm(2), operand, is_byte_instr));
                         }
+                        "INV" => {
+                            consume_whitespace(&mut cursor);
+                            let operand = parse_operand(&mut cursor);
+                            lines.push(AsmLine::XOR(Operand::Imm(0xFFFF), operand, is_byte_instr));
+                        }
                         "NOP" => {
                             lines.push(AsmLine::MOV(Operand::Imm(0), Operand::Reg(Reg::CG), false));
                         }

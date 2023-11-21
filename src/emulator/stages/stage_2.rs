@@ -37,16 +37,18 @@ pub fn exec_stage_2a(
                 }
             }
             2 => {
-                // indirect addressing mode
-                mem_read_addr_0 = regs[src_reg_id as usize];
+                // indirect addressing
+                if src_reg_id != 2 && src_reg_id != 3 {
+                    mem_read_addr_0 = regs[src_reg_id as usize];
+                }
             }
             3 => {
                 if src_reg_id == 0 {
                     // immediate
                     mem_read_addr_0 = regs[0] + 2;
                     used_instr_word_for_src = true;
-                } else {
-                    // indirect addressing mode
+                } else if src_reg_id != 2 && src_reg_id != 3 {
+                    // indirect auto-inc mode
                     mem_read_addr_0 = regs[src_reg_id as usize];
                     inc_src_reg = true;
                 }

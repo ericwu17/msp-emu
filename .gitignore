@@ -1,7 +1,6 @@
 /target
 
 main.asm
-main.c
 seq.code
 main.lst
 main.obj

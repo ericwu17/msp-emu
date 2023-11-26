@@ -65,6 +65,7 @@ async fn main() {
 
     let bytes = generate_bytes(globals, lines);
     write_bytes_to_file(&bytes);
+    println!("Wrote {} bytes to file {}", bytes.len(), OUTPUT_FILE_NAME);
     let mut emulator = Emulator::new(&bytes);
 
     let mut curr_switch_states = 0u16;

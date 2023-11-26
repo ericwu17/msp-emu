@@ -96,29 +96,14 @@ impl Emulator {
 
     pub fn run_one_instr(&mut self) {
         self.stage_0();
-        println!("{:X}", self.curr_instr);
         self.stage_1();
-        println!(
-            "{:X} {:X} {} {:X}",
-            self.src_addr_mode, self.dst_addr_mode, self.is_byte_instr, self.opcode
-        );
-        println!("{:X} {:X}", self.src_reg_id, self.dst_reg_id,);
         self.stage_2a();
-        println!("mem_read_addr_0: {:X}", self.mem_read_addr_0);
         self.stage_2b();
         self.stage_3a();
-        println!("mem_read_addr_1: {:X}", self.mem_read_addr_1);
         self.stage_3b();
-        println!("operands are {:X} {:X}", self.operand_0, self.operand_1);
         self.stage_4();
-        println!("result is {:X}", self.result);
         self.stage_5a();
-        println!("mem_write_addr is {:X}", self.mem_write_addr);
         self.stage_5b();
-
-        println!("finished instr with regs {:?}", self);
-        println!("stack is {:X?}", &self.mem[0x7FF0..=0x8000]);
-        println!("VGA mem is {:X?}", &self.mem[0x8000..=0x8020]);
     }
 
     fn stage_0(&mut self) {

@@ -53,8 +53,6 @@ pub fn process_double_operand_w(
             let has_carry;
             let has_overflow;
             (result, has_carry) = operand_2.overflowing_sub(operand_1);
-            println!("{}", operand_1);
-            println!("{}", operand_2);
             (_, has_overflow) = (operand_2 as i16).overflowing_sub(operand_1 as i16);
             new_cf = Some(!has_carry); // set to 1 if no borrow, reset if borrow
             new_zf = Some(result == 0);
